@@ -10,8 +10,8 @@ public class BLEU_3referenceData {
 
     public static void main(String[] args) {
         // Example candidate and reference translations
-        String candidate = "the picture the picture by me";
-        String reference = "the picture is clicked by me";
+        String candidate = "Good morning! How did you sleep last night?";
+        String reference = "Good morning! How was your sleep last night?";
 
         // Calculate BLEU score
         BLEUStats bleuStats = calculateBLEUScore(candidate, reference);
@@ -30,7 +30,7 @@ public class BLEU_3referenceData {
     public static BLEUStats calculateBLEUScore(String candidate, String reference) {
         double brevityPenalty = computeBrevityPenalty(candidate, reference);
         double[] precisions = computePrecisions(candidate, reference);
-        double bleuScore = brevityPenalty * geometricMean(precisions);
+        double bleuScore = brevityPenalty * bleuHelper(precisions);
 
         // Additional statistics
         int candidateLength = candidate.split(" ").length;
@@ -56,6 +56,8 @@ public class BLEU_3referenceData {
         return precisions;
     }
 
+
+    // Count number of matching n-grams
     public static int countMatches(List<String> candidateTokens, List<String> referenceTokens, int n) {
         int countMatches = 0;
         Map<List<String>, Integer> referenceNgrams = new HashMap<>();
@@ -86,12 +88,12 @@ public class BLEU_3referenceData {
         }
     }
 
-    public static double geometricMean(double[] values) {
-        double product = 1.0;
+    public static double bleuHelper(double[] values) {
+        double logSum = 0.0;
         for (double value : values) {
-            product *= value;
+            logSum += Math.log(value);
         }
-        return Math.pow(product, 1.0 / values.length);
+        return Math.exp((1.0/4) * logSum);
     }
 
     static class BLEUStats {
