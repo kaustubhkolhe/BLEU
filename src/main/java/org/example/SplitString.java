@@ -8,10 +8,7 @@ public class SplitString {
     public static void main(String[] args) {
         String sentence = "I can't wait. for the start of the weekend .";
 
-
         sentence = sentence.trim();
-
-
         String[] words = sentence.split("(?=[.,!?])|(?<=[.,!?])|\\s+");
 
         // Filter out empty strings using Stream
