@@ -1,17 +1,23 @@
-
 package org.example;
 
+import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class BLEU_3referenceData {
+    // Declare maxNgramSize as a global variable
+    private static int maxNgramSize;
+    private static int candidateLength;
+    private static int referenceLength;
+    private static double smooth_mteval = 1.0; // Initialize smooth_mteval
+    private static double smooth_value = 0.1; // Initialize smooth_value
 
     public static void main(String[] args) {
         // Example candidate and reference translations
-        String candidate = "Good morning! How did you sleep last night?";
-        String reference = "Good morning! How was your sleep last night?";
+        String candidate = "It's time for? me, to meet a doctor.";
+        String reference = "I have a? doctor's appointment.";
 
         // Calculate BLEU score
         BLEUStats bleuStats = calculateBLEUScore(candidate, reference);
@@ -23,38 +29,60 @@ public class BLEU_3referenceData {
         System.out.println(" 'brevity_penalty': " + bleuStats.brevityPenalty + ",");
         System.out.println(" 'length_ratio': " + bleuStats.lengthRatio + ",");
         System.out.println(" 'translation_length': " + bleuStats.translationLength + ",");
-        System.out.println(" 'reference_length': " + bleuStats.referenceLength);
+        System.out.println(" 'reference_length': " + bleuStats.referenceLength + ",");
         System.out.println("}");
     }
 
     public static BLEUStats calculateBLEUScore(String candidate, String reference) {
-        double brevityPenalty = computeBrevityPenalty(candidate, reference);
-        double[] precisions = computePrecisions(candidate, reference);
+        // Calculate candidate and reference lengths
+        candidateLength = candidate.split("\\s+|(?=[.,!?])|(?<=[.,!?])").length;
+        referenceLength = reference.split("\\s+|(?=[.,!?])|(?<=[.,!?])").length;
+        double brevityPenalty = computeBrevityPenalty();
+        double[] precisions = computePrecisions(candidate, reference, "exp");
+
+
         double bleuScore = brevityPenalty * bleuHelper(precisions);
 
         // Additional statistics
-        int candidateLength = candidate.split(" ").length;
-        int referenceLength = reference.split(" ").length;
         double lengthRatio = (double) candidateLength / referenceLength;
 
         return new BLEUStats(bleuScore, precisions, brevityPenalty, lengthRatio, candidateLength, referenceLength);
     }
 
-    public static double[] computePrecisions(String candidate, String reference) {
-        List<String> candidateTokens = Arrays.asList(candidate.toLowerCase().split(" "));
-        List<String> referenceTokens = Arrays.asList(reference.toLowerCase().split(" "));
 
-        int maxNgramSize = 4;
+
+    public static double[] computePrecisions(String candidate, String reference, String smoothMethod) {
+        List<String> candidateTokens = Arrays.asList(candidate.toLowerCase().split("\\s+|(?=[.,!?])|(?<=[.,!?])"));
+        List<String> referenceTokens = Arrays.asList(reference.toLowerCase().split("\\s+|(?=[.,!?])|(?<=[.,!?])"));
+
+        maxNgramSize = (candidateLength >= 4 && referenceLength >= 4) ? 4 : candidateLength; // Assign value to maxNgramSize
+
         double[] precisions = new double[maxNgramSize];
+        int[] correct = new int[maxNgramSize];
+        int[] total = new int[maxNgramSize];
 
         for (int n = 1; n <= maxNgramSize; n++) {
             int candidateMatches = countMatches(candidateTokens, referenceTokens, n);
-            int candidateNgrams = Math.max(candidateTokens.size() - n + 1, 0);
-            precisions[n - 1] = (double) candidateMatches / candidateNgrams;
+            int candidateNgrams = candidateTokens.size() - n + 1;
+
+            correct[n - 1] = candidateMatches;
+            total[n - 1] = candidateNgrams;
+
+            if (correct[n - 1] == 0) {
+                if (smoothMethod.equals("exp")) {
+                    smooth_mteval *= 2;
+                    precisions[n - 1] = 100.0 / (smooth_mteval * total[n - 1]);
+                } else if (smoothMethod.equals("floor")) {
+                    precisions[n - 1] = 100.0 * smooth_value / total[n - 1];
+                }
+            } else {
+                precisions[n - 1] = 100.0 * correct[n - 1] / total[n - 1];
+            }
         }
 
         return precisions;
     }
+
 
 
     // Count number of matching n-grams
@@ -77,10 +105,7 @@ public class BLEU_3referenceData {
         return countMatches;
     }
 
-    public static double computeBrevityPenalty(String candidate, String reference) {
-        int candidateLength = candidate.split(" ").length;
-        int referenceLength = reference.split(" ").length;
-
+    public static double computeBrevityPenalty() {
         if (candidateLength > referenceLength) {
             return 1.0;
         } else {
@@ -89,11 +114,16 @@ public class BLEU_3referenceData {
     }
 
     public static double bleuHelper(double[] values) {
-        double logSum = 0.0;
-        for (double value : values) {
-            logSum += Math.log(value);
+        double product = 1.0;
+        for (double number : values) {
+            product *= number;
         }
-        return Math.exp((1.0/4) * logSum);
+        double result = Math.pow(product, 1.0 / values.length);
+
+        DecimalFormat df = new DecimalFormat("#.##");
+        String formattedResult = df.format(result);
+
+        return Double.parseDouble(formattedResult);
     }
 
     static class BLEUStats {
@@ -104,6 +134,7 @@ public class BLEU_3referenceData {
         int translationLength;
         int referenceLength;
 
+
         public BLEUStats(double bleuScore, double[] precisions, double brevityPenalty, double lengthRatio, int translationLength, int referenceLength) {
             this.bleuScore = bleuScore;
             this.precisions = precisions;
@@ -111,6 +142,7 @@ public class BLEU_3referenceData {
             this.lengthRatio = lengthRatio;
             this.translationLength = translationLength;
             this.referenceLength = referenceLength;
+
         }
     }
 }
